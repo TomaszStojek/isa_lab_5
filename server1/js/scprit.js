@@ -150,7 +150,7 @@ class App {
             new Patient('Jack Ma', '1961-01-30'),
             new Patient('Elon Musk', '1999-01-01')
         ];
-        let query = `INSERT INTO patients (name, dateOfBirth) VALUES `;
+        let query = `INSERT INTO patient (name, dateOfBirth) VALUES `;
         const values = patients.map(patient => `('${patient.name}', '${patient.dob}')`).join(", ");
         query += values;
 
