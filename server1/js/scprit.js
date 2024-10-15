@@ -1,6 +1,5 @@
 
 // UI components
-
 class UIComponent {
     constructor(tagName, id) {
         this.element = document.createElement(tagName);
@@ -152,7 +151,7 @@ class App {
             new Patient('Elon Musk', '1999-01-01')
         ];
         let query = `INSERT INTO patients (name, dateOfBirth) VALUES `;
-        const values = patients.map(patient => `('${patient.name}', '${patient.dateOfBirth}')`).join(", ");
+        const values = patients.map(patient => `('${patient.name}', '${patient.dob}')`).join(", ");
         query += values;
 
         fetch('http://localhost:3000/query', {
@@ -181,7 +180,7 @@ class App {
         const body = sqlRequest.getBody(method);
 
         const response = await fetch(endpoint, {
-            method,
+            method: method,
             headers: {
                 'Content-Type': 'application/json'
             },
