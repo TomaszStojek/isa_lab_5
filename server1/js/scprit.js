@@ -1,106 +1,197 @@
-const CONTAINER_ID = 'content';
-const TEXT_ROWS = 10;
-const TEXT_COLS = 120;
-const API_URL = 'http://localhost:3000/api';
-const PUT = 'PUT';
-const POST = 'POST';
 
-// Button class
-class Button {
-    constructor(text, method, onClick) {
-        this.text = text;
-        this.method = method;  // Store the HTTP method (POST, PUT, etc.)
-        this.element = document.createElement('button');
-        this.element.textContent = this.text;  // Set the button's label
-        this.element.onclick = onClick;  // Attach the click handler
+// UI components
+
+class UIComponent {
+    constructor(tagName, id) {
+        this.element = document.createElement(tagName);
+        if (id) this.element.id = id;
+    }
+
+    // Generic render method to append the element to the parent
+    render(parent) {
+        parent.appendChild(this.element);
+    }
+}
+class Header extends UIComponent {
+    constructor(text, level = 1) {
+        super(`h${level}`);  // Call the base class constructor with the appropriate tag
+        this.element.textContent = text;
     }
 }
 
-// TextArea class
-class TextArea {
-    constructor() {
-        this.element = document.createElement('textarea');
-        this.element.rows = TEXT_ROWS;  // Optional: set textarea size
-        this.element.cols = TEXT_COLS;
-    }
-
-    giveString() {
-        return this.element.value;  // Return the current value of the textarea
-    }
-
-    setString(value) {
-        this.element.value = value;  // Set a new value in the textarea
+class Button extends UIComponent {
+    constructor(id, label, onClick) {
+        super('button', id);  // Use the base class to create the button element with an id
+        this.element.textContent = label;
+        this.element.addEventListener('click', onClick);
     }
 }
 
-// QueryUI class to manage buttons and the shared text area
-class QueryUI {
-    constructor(textArea, buttons) {
-        this.contentContainer = document.getElementById(CONTAINER_ID);
-        this.textArea = textArea;
-        this.buttons = buttons;
-        this.url = API_URL;  // API base URL
+class TextArea extends UIComponent {
+    constructor(id, placeholder) {
+        super('textarea', id);  // Use the base class to create the textarea element with an id
+        this.element.placeholder = placeholder;
     }
 
-    // Method to handle HTTP requests
-    sendRequest(endpoint, method, data = null, callback) {
-        const xhr = new XMLHttpRequest();
-        xhr.open(method, `${this.url}${endpoint}`, true);
-        xhr.setRequestHeader('Content-Type', 'application/json; charset=UTF-8');
+    getValue() {
+        return this.element.value;
+    }
+}
 
-        xhr.onreadystatechange = function () {
-            if (xhr.readyState === 4) {  // Request is done
-                if (xhr.status >= 200 && xhr.status < 300) {  // Successful response
-                    callback(null, JSON.parse(xhr.responseText));
-                } else {  // Error in response
-                    callback(`Error: ${xhr.status}`, null);
-                }
-            }
-        };
-
-        // If data is provided (for POST, PUT), send it as a JSON string
-        if (data) {
-            xhr.send(JSON.stringify(data));
-        } else {
-            xhr.send();  // For GET requests, no body is sent
-        }
+class ResponseBox extends UIComponent {
+    constructor(id) {
+        super('div', id);  // Use the base class to create the div element with an id
+        this.element.innerHTML = 'Response will be shown here: ';
     }
 
-    // Method to render the UI
-    render() {
-        // Append the textarea
-        this.contentContainer.appendChild(this.textArea.element);
+    update(response) {
+        this.element.innerHTML = response;
+    }
+}
 
-        // Append the buttons and attach their handlers
-        this.buttons.forEach(button => {
-            button.element.onclick = () => {
-                const data = this.textArea.giveString();  // Get content from textarea
 
-                // Send a request based on the button's method
-                this.sendRequest('/posts', button.method, { query: data }, (err, response) => {
-                    if (err) {
-                        console.error(err);
-                    } else {
-                        console.log(`${button.method} response:`, response);
-                    }
-                });
-            };
+class UIManager {
+    constructor(container) {
+        this.container = container;
+    }
 
-            // Add button to the container
-            this.contentContainer.appendChild(button.element);
+    render(components) {
+        components.forEach(component => {
+            component.render(this.container);
         });
     }
+
 }
 
-// Create a shared textarea instance
-let textArea = new TextArea();
+class Patient {
+    constructor(name, dob) {
+        this.name = name;
+        this.dob = dob;
+    }
 
-// Create buttons for POST and PUT
-let postButton = new Button('Post', POST);
-let putButton = new Button('Put', PUT);
+    toJSON() {
+        return {
+            name: this.name,
+            dob: this.dob
+        };
+    }
+}
 
-// Create QueryUI instance with shared text area and buttons
-let queryUI = new QueryUI(textArea, [postButton, putButton]);
+class SQLRequest {
+    constructor(query) {
+        this.query = query.trim();
+        this.validKeywords = {
+            select: 'GET',
+            insert: 'POST',
+        };
+        this.baseUrl = 'http://localhost:3000';
+    }
 
-// Render the UI
-queryUI.render();
+    isValid() {
+        if (!this.query) {
+            return { valid: false, message: 'Query cannot be empty.', method: null };
+        }
+        const lowerQuery = this.query.toLowerCase();
+        console.log(lowerQuery);
+        const keyword = Object.keys(this.validKeywords).find(kw => lowerQuery.startsWith(kw));
+
+        if (!keyword) {
+            return { valid: false, message: 'Invalid keyword.', method: null };
+        }
+        return { valid: true, message: 'Valid query.', method: this.validKeywords[keyword] };
+    }
+    buildEndpoint(method) {
+        return method === 'GET'
+            ? `${this.baseUrl}/query?sql=${encodeURIComponent(this.query)}`
+            : `${this.baseUrl}/query`;  // For POST, PUT, DELETE, just return the endpoint
+    }
+
+    getBody(method) {
+        return method === 'GET' ? null : JSON.stringify({ query: this.query });
+    }
+}
+
+class App {
+    constructor() {
+        this.container = document.getElementById('content');  // Main container to hold UI
+        this.uiManager = new UIManager(this.container);  // UIManager instance
+    }
+
+    // Initialize the app and display the UI components
+    init() {
+        // Create the main heading
+        const mainHeading = new Header('Server 1 Client', 1);
+
+        // Create Part A heading and Insert Dummy Data Button
+        const partAHeading = new Header('Part A', 2);
+        const insertButton = new Button('insertBtn', 'Insert Dummy Data via POST', () => this.insertDummyData());
+
+        // Create Part B heading, SQL Query TextBox, and Submit Button
+        const partBHeading = new Header('Part B', 2);
+        this.sqlQueryTextBox = new TextArea('sqlQuery', 'Enter SQL query here');
+        const submitQueryButton = new Button('submitQueryBtn', 'Submit Query', () => this.handleQuery());
+
+        // Create the ResponseBox for displaying server responses
+        this.responseBox = new ResponseBox('response');
+
+        // Render all UI components using the UIManager
+        this.uiManager.render([
+            mainHeading,
+            partAHeading, insertButton,
+            partBHeading, this.sqlQueryTextBox, submitQueryButton,
+            this.responseBox
+        ]);
+    }
+
+    // Method to insert dummy data via POST request
+    insertDummyData() {
+        const patients = [
+            new Patient('Sara Brown', '1901-01-01'),
+            new Patient('John Smith', '1941-01-01'),
+            new Patient('Jack Ma', '1961-01-30'),
+            new Patient('Elon Musk', '1999-01-01')
+        ];
+        let query = `INSERT INTO patients (name, dateOfBirth) VALUES `;
+        const values = patients.map(patient => `('${patient.name}', '${patient.dateOfBirth}')`).join(", ");
+        query += values;
+
+        fetch('http://localhost:3000/query', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ query })
+        }).then(response => response.text())
+            .then(text => this.responseBox.update(text));
+    }
+
+    // Method to submit SQL query
+    async handleQuery() {
+        const query = this.sqlQueryTextBox.getValue();
+        const sqlRequest = new SQLRequest(query);
+        const validationResult = sqlRequest.isValid();
+
+        if (!validationResult.valid) {
+            this.responseBox.update(validationResult.message);
+            return;
+        }
+
+        const method = validationResult.method;
+        const endpoint = sqlRequest.buildEndpoint(method);
+        const body = sqlRequest.getBody(method);
+
+        const response = await fetch(endpoint, {
+            method,
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: body
+        });
+        const text = await response.text();
+        this.responseBox.update(text);
+    }
+
+}
+
+const app = new App();
+app.init();
