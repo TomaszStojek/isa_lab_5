@@ -1,20 +1,29 @@
 
-// Button class
+// UI components
+class Header {
+    constructor(text, level = 1) {
+        this.heading = document.createElement(`h${level}`);
+        this.heading.textContent = text;
+    }
+
+    render(parent) {
+        parent.appendChild(this.heading);
+    }
+}
+
 class Button {
     constructor(id, label, onClick) {
         this.button = document.createElement('button');
         this.button.id = id;
         this.button.textContent = label;
-        this.button.addEventListener('click', onClick);  // Attach click event handler
+        this.button.addEventListener('click', onClick);
     }
 
-    // Method to render the button inside a parent element
     render(parent) {
         parent.appendChild(this.button);
     }
 }
 
-// TextArea class
 class TextArea {
     constructor(id, placeholder) {
         this.textArea = document.createElement('textarea');
@@ -46,6 +55,56 @@ class ResponseBox {
     }
 }
 
+
+class UIManager {
+    constructor(container) {
+        this.container = container;
+    }
+
+    render(components) {
+        components.forEach(component => {
+            component.render(this.container);
+        });
+    }
+
+}
+
+
+class App {
+    constructor() {
+        this.container = document.getElementById('content');  // Main container to hold UI
+        this.uiManager = new UIManager(this.container);  // UIManager instance
+    }
+
+    // Initialize the app and display the UI components
+    init() {
+        // Create the main heading
+        const mainHeading = new Header('Server 1 Client', 1);
+
+        // Create Part A heading and Insert Dummy Data Button
+        const partAHeading = new Header('Part A', 2);
+        const insertButton = new Button('insertBtn', 'Insert Dummy Data via POST', () => this.insertDummyData());
+
+        // Create Part B heading, SQL Query TextBox, and Submit Button
+        const partBHeading = new Header('Part B', 2);
+        this.sqlQueryTextBox = new TextArea('sqlQuery', 'Enter SQL query here');
+        const submitQueryButton = new Button('submitQueryBtn', 'Submit Query', () => this.submitQuery());
+
+        // Create the ResponseBox for displaying server responses
+        this.responseBox = new ResponseBox('response');
+
+        // Render all UI components using the UIManager
+        this.uiManager.render([
+            mainHeading,
+            partAHeading, insertButton,
+            partBHeading, this.sqlQueryTextBox, submitQueryButton,
+            this.responseBox
+        ]);
+    }
+}
+
+const app = new App();
+app.init();
 // // QueryUI class to manage buttons and the shared text area
 // class QueryUI {
 //     constructor(textArea, buttons) {
