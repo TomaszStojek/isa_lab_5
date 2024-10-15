@@ -1,57 +1,51 @@
 
 // UI components
-class Header {
+
+class UIComponent {
+    constructor(tagName, id) {
+        this.element = document.createElement(tagName);
+        if (id) this.element.id = id;
+    }
+
+    // Generic render method to append the element to the parent
+    render(parent) {
+        parent.appendChild(this.element);
+    }
+}
+class Header extends UIComponent {
     constructor(text, level = 1) {
-        this.heading = document.createElement(`h${level}`);
-        this.heading.textContent = text;
-    }
-
-    render(parent) {
-        parent.appendChild(this.heading);
+        super(`h${level}`);  // Call the base class constructor with the appropriate tag
+        this.element.textContent = text;
     }
 }
 
-class Button {
+class Button extends UIComponent {
     constructor(id, label, onClick) {
-        this.button = document.createElement('button');
-        this.button.id = id;
-        this.button.textContent = label;
-        this.button.addEventListener('click', onClick);
-    }
-
-    render(parent) {
-        parent.appendChild(this.button);
+        super('button', id);  // Use the base class to create the button element with an id
+        this.element.textContent = label;
+        this.element.addEventListener('click', onClick);
     }
 }
 
-class TextArea {
+class TextArea extends UIComponent {
     constructor(id, placeholder) {
-        this.textArea = document.createElement('textarea');
-        this.textArea.id = id;
-        this.textArea.placeholder = placeholder;
-
+        super('textarea', id);  // Use the base class to create the textarea element with an id
+        this.element.placeholder = placeholder;
     }
 
     getValue() {
-        return this.textArea.value;
-    }
-    render(parent) {
-        parent.appendChild(this.textArea);
+        return this.element.value;
     }
 }
 
-class ResponseBox {
+class ResponseBox extends UIComponent {
     constructor(id) {
-        this.responseBox = document.createElement('div');
-        this.responseBox.id = id;
-        this.responseBox.innerHTML = 'Response will be shown here: ';
-    }
-    update(response) {
-        this.responseBox.innerHTML = response;
+        super('div', id);  // Use the base class to create the div element with an id
+        this.element.innerHTML = 'Response will be shown here: ';
     }
 
-    render(parent) {
-        parent.appendChild(this.responseBox);
+    update(response) {
+        this.element.innerHTML = response;
     }
 }
 
