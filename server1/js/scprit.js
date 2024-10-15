@@ -1,5 +1,5 @@
 // String literals and constants
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = 'https://isa-lab-5.onrender.com/';
 const INSERT_ENDPOINT = `${BASE_URL}/query`;
 const HEADING_MAIN = 'Server 1 Client';
 const HEADING_PART_A = 'Part A';
