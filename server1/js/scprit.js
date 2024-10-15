@@ -69,7 +69,19 @@ class UIManager {
 
 }
 
+class Patient {
+    constructor(name, dob) {
+        this.name = name;
+        this.dob = dob;
+    }
 
+    toJSON() {
+        return {
+            name: this.name,
+            dob: this.dob
+        };
+    }
+}
 class App {
     constructor() {
         this.container = document.getElementById('content');  // Main container to hold UI
@@ -100,6 +112,26 @@ class App {
             partBHeading, this.sqlQueryTextBox, submitQueryButton,
             this.responseBox
         ]);
+    }
+
+    // Method to insert dummy data via POST request
+    insertDummyData() {
+        const patients = [
+            new Patient('Sara Brown', '1901-01-01'),
+            new Patient('John Smith', '1941-01-01'),
+            new Patient('Jack Ma', '1961-01-30'),
+            new Patient('Elon Musk', '1999-01-01')
+        ];
+        const data = patients.map(patient => patient.toJSON());
+        fetch('http://localhost:3000/insert', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+
+        }).then(response => response.text())
+            .then(text => this.responseBox.update(text));
     }
 }
 
