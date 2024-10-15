@@ -82,6 +82,41 @@ class Patient {
         };
     }
 }
+
+class SQLRequest {
+    constructor(query) {
+        this.query = query.trim();
+        this.validKeywords = {
+            select: 'GET',
+            insert: 'POST',
+        };
+        this.baseUrl = 'http://localhost:3000';
+    }
+
+    isValid() {
+        if (!this.query) {
+            return { valid: false, message: 'Query cannot be empty.', method: null };
+        }
+        const lowerQuery = this.query.toLowerCase();
+        console.log(lowerQuery);
+        const keyword = Object.keys(this.validKeywords).find(kw => lowerQuery.startsWith(kw));
+
+        if (!keyword) {
+            return { valid: false, message: 'Invalid keyword.', method: null };
+        }
+        return { valid: true, message: 'Valid query.', method: this.validKeywords[keyword] };
+    }
+    buildEndpoint(method) {
+        return method === 'GET'
+            ? `${this.baseUrl}/query?sql=${encodeURIComponent(this.query)}`
+            : `${this.baseUrl}/query`;  // For POST, PUT, DELETE, just return the endpoint
+    }
+
+    getBody(method) {
+        return method === 'GET' ? null : JSON.stringify({ query: this.query });
+    }
+}
+
 class App {
     constructor() {
         this.container = document.getElementById('content');  // Main container to hold UI
@@ -100,7 +135,7 @@ class App {
         // Create Part B heading, SQL Query TextBox, and Submit Button
         const partBHeading = new Header('Part B', 2);
         this.sqlQueryTextBox = new TextArea('sqlQuery', 'Enter SQL query here');
-        const submitQueryButton = new Button('submitQueryBtn', 'Submit Query', () => this.submitQuery());
+        const submitQueryButton = new Button('submitQueryBtn', 'Submit Query', () => this.handleQuery());
 
         // Create the ResponseBox for displaying server responses
         this.responseBox = new ResponseBox('response');
@@ -122,17 +157,46 @@ class App {
             new Patient('Jack Ma', '1961-01-30'),
             new Patient('Elon Musk', '1999-01-01')
         ];
-        const data = patients.map(patient => patient.toJSON());
-        fetch('http://localhost:3000/insert', {
+        let query = `INSERT INTO patients (name, dateOfBirth) VALUES `;
+        const values = patients.map(patient => `('${patient.name}', '${patient.dateOfBirth}')`).join(", ");
+        query += values;
+
+        fetch('http://localhost:3000/query', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(data)
-
+            body: JSON.stringify({ query })
         }).then(response => response.text())
             .then(text => this.responseBox.update(text));
     }
+
+    // Method to submit SQL query
+    async handleQuery() {
+        const query = this.sqlQueryTextBox.getValue();
+        const sqlRequest = new SQLRequest(query);
+        const validationResult = sqlRequest.isValid();
+
+        if (!validationResult.valid) {
+            this.responseBox.update(validationResult.message);
+            return;
+        }
+
+        const method = validationResult.method;
+        const endpoint = sqlRequest.buildEndpoint(method);
+        const body = sqlRequest.getBody(method);
+
+        const response = await fetch(endpoint, {
+            method,
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: body
+        });
+        const text = await response.text();
+        this.responseBox.update(text);
+    }
+
 }
 
 const app = new App();
