@@ -1,6 +1,7 @@
 // String literals and constants
-const BASE_URL = 'https://tomekankitserver2.com';
+const BASE_URL = 'http://localhost:3000';
 const INSERT_ENDPOINT = `${BASE_URL}/query`;
+
 const HEADING_MAIN = 'Server 1 Client';
 const HEADING_PART_A = 'Part A';
 const HEADING_PART_B = 'Part B';
@@ -88,6 +89,7 @@ class Patient {
     }
 }
 
+// responsible for processing an SQL query, determining its validity, and generating the correct HTTP request parameters
 class SQLRequest {
     constructor(query) {
         this.query = query.trim();
@@ -103,7 +105,7 @@ class SQLRequest {
             return { valid: false, message: QUERY_ERROR_EMPTY, method: null };
         }
         const lowerQuery = this.query.toLowerCase();
-        console.log(lowerQuery);
+        // chat gpt was used to make this method below
         const keyword = Object.keys(this.validKeywords).find(kw => lowerQuery.startsWith(kw));
 
         if (!keyword) {
@@ -111,7 +113,7 @@ class SQLRequest {
         }
         return { valid: true, message: QUERY_SUCCESS_VALID, method: this.validKeywords[keyword] };
     }
-
+    // chat gpt helped with this method below
     buildEndpoint(method) {
         return method === 'GET'
             ? `${this.baseUrl}/query?sql=${encodeURIComponent(this.query)}`
@@ -121,6 +123,25 @@ class SQLRequest {
     getBody(method) {
         return method === 'GET' ? null : JSON.stringify({ query: this.query });
     }
+}
+
+// Function to make an XMLHttpRequest
+function makeHttpRequest(method, url, body, callback) {
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, url, true);
+    xhr.setRequestHeader('Content-Type', CONTENT_TYPE_JSON);
+
+    xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+                callback(null, xhr.responseText);
+            } else {
+                callback(`Error: ${xhr.status}`);
+            }
+        }
+    };
+
+    xhr.send(body);
 }
 
 class App {
@@ -161,21 +182,23 @@ class App {
             new Patient('Jack Ma', '1961-01-30'),
             new Patient('Elon Musk', '1999-01-01')
         ];
+
         let query = `INSERT INTO patient (name, dateOfBirth) VALUES `;
         const values = patients.map(patient => `('${patient.name}', '${patient.dob}')`).join(", ");
         query += values;
 
-        fetch(INSERT_ENDPOINT, {
-            method: 'POST',
-            headers: {
-                'Content-Type': CONTENT_TYPE_JSON
-            },
-            body: JSON.stringify({ query })
-        }).then(response => response.text())
-            .then(text => this.responseBox.update(text));
+        const body = JSON.stringify({ query });
+
+        makeHttpRequest('POST', INSERT_ENDPOINT, body, (err, responseText) => {
+            if (err) {
+                this.responseBox.update(err);
+            } else {
+                this.responseBox.update(responseText);
+            }
+        });
     }
 
-    async handleQuery() {
+    handleQuery() {
         const query = this.sqlQueryTextBox.getValue();
         const sqlRequest = new SQLRequest(query);
         const validationResult = sqlRequest.isValid();
@@ -189,15 +212,13 @@ class App {
         const endpoint = sqlRequest.buildEndpoint(method);
         const body = sqlRequest.getBody(method);
 
-        const response = await fetch(endpoint, {
-            method: method,
-            headers: {
-                'Content-Type': CONTENT_TYPE_JSON
-            },
-            body: body
+        makeHttpRequest(method, endpoint, body, (err, responseText) => {
+            if (err) {
+                this.responseBox.update(err);
+            } else {
+                this.responseBox.update(responseText);
+            }
         });
-        const text = await response.text();
-        this.responseBox.update(text);
     }
 }
 
