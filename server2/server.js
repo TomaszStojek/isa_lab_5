@@ -1,37 +1,38 @@
 // ChatGPT was used to help generate the code in this file
+// Changing back to MySQL from PostgreSQL
 
 const http = require('http');
 const url = require('url');
-const { Client } = require('pg');
+const mysql = require('mysql2');
 require('dotenv').config();
 
-// Use the connection string from the .env file
-const connectionString = process.env.DATABASE_URL;
-
-const client = new Client({
-    connectionString: connectionString,
-    ssl: {
-        rejectUnauthorized: false
-    }
+// Use the connection details from the .env file
+const connection = mysql.createConnection({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    port: process.env.DB_PORT
 });
 
-client.connect((err) => {
+// Connect to MySQL database
+connection.connect((err) => {
     if (err) {
         console.error('Connection error', err.stack);
     } else {
-        console.log('Connected to PostgreSQL');
+        console.log('Connected to MySQL');
     }
 });
 
 const createTableQuery = `
     CREATE TABLE IF NOT EXISTS patient (
-        patientid SERIAL PRIMARY KEY,
+        patientid INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(100) NOT NULL,
         dateOfBirth DATE NOT NULL
     );
 `;
 
-client.query(createTableQuery, (err, res) => {
+connection.query(createTableQuery, (err, results) => {
     if (err) {
         console.error('Error creating table', err.stack);
     } else {
@@ -71,18 +72,17 @@ class Server {
 
                 console.log('Received GET query:', sqlQuery);
 
-                try {
-                    // Run the SQL query
-                    const result = await client.query(sqlQuery);
-
-                    // Send the results back as a JSON response
-                    res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify(result.rows));  // Use result.rows to send back the rows
-                } catch (err) {
-                    console.error('Error executing query:', err.stack);
-                    res.writeHead(500, { 'Content-Type': 'text/plain' });
-                    res.end(`Error executing query: ${err.message}`);
-                }
+                connection.query(sqlQuery, (err, results) => {
+                    if (err) {
+                        console.error('Error executing query:', err.stack);
+                        res.writeHead(500, { 'Content-Type': 'text/plain' });
+                        res.end(`Error executing query: ${err.message}`);
+                    } else {
+                        // Send the results back as a JSON response
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify(results));
+                    }
+                });
 
             } else if (req.method === 'POST' && req.url === '/query') {
                 let body = '';
@@ -93,22 +93,27 @@ class Server {
                 });
 
                 // Process the complete request
-                req.on('end', async () => {
+                req.on('end', () => {
                     try {
                         const { query } = JSON.parse(body);  // Parse the incoming SQL query
                         console.log('Received POST query:', query);
 
-                        // Run the SQL query
-                        const result = await client.query(query);
-
-                        // Send the results back as a JSON response
-                        res.writeHead(200, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify(result.rows));  // Use result.rows to send back the rows
+                        connection.query(query, (err, results) => {
+                            if (err) {
+                                console.error('Error executing query:', err.stack);
+                                res.writeHead(500, { 'Content-Type': 'text/plain' });
+                                res.end(`Error executing query: ${err.message}`);
+                            } else {
+                                // Send the results back as a JSON response
+                                res.writeHead(200, { 'Content-Type': 'application/json' });
+                                res.end(JSON.stringify(results));
+                            }
+                        });
 
                     } catch (err) {
-                        console.error('Error executing query:', err.stack);
+                        console.error('Error processing request:', err.stack);
                         res.writeHead(500, { 'Content-Type': 'text/plain' });
-                        res.end(`Error executing query: ${err.message}`);
+                        res.end(`Error processing request: ${err.message}`);
                     }
                 });
 
