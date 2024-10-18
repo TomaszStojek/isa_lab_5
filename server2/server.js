@@ -1,29 +1,12 @@
-// ChatGPT was used to help generate the code in this file
-// Changing back to MySQL from PostgreSQL
-
+// This the following files/classes were helped made with the help of ChatGPT: Server, QueryController, Router
 const http = require('http');
 const url = require('url');
-const mysql = require('mysql2');
+const messages = require('./lang/messages/en/user');  // Correctly importing the messages
+const connection = require('./modules/connection');  // Importing the connection module
 require('dotenv').config();
 
-// Use the connection details from the .env file
-const connection = mysql.createConnection({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    port: process.env.DB_PORT
-});
-
-// Connect to MySQL database
-connection.connect((err) => {
-    if (err) {
-        console.error('Connection error', err.stack);
-    } else {
-        console.log('Connected to MySQL');
-    }
-});
-
+const PORT = 3000;
+const QUERY_ROUTE = '/query';
 const createTableQuery = `
     CREATE TABLE IF NOT EXISTS patient (
         patientid INT AUTO_INCREMENT PRIMARY KEY,
@@ -32,100 +15,154 @@ const createTableQuery = `
     );
 `;
 
-connection.query(createTableQuery, (err, results) => {
-    if (err) {
-        console.error('Error creating table', err.stack);
-    } else {
-        console.log('Patient table created or already exists');
-    }
-});
-
-class Server {
-    constructor(port = 3000) {
-        this.port = port;
+// DatabaseManager class to handle the connection and table creation
+class DatabaseManager {
+    constructor(connection, tableCreationQuery) {
+        this.connection = connection;
+        this.tableCreationQuery = tableCreationQuery;
     }
 
-    start() {
-        const server = http.createServer(async (req, res) => {
-            // Handle CORS
-            res.setHeader('Access-Control-Allow-Origin', '*');
-            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-            res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-            // Handle OPTIONS requests (for preflight CORS)
-            if (req.method === 'OPTIONS') {
-                res.writeHead(204); // No Content
-                res.end();
-                return;
+    connect() {
+        this.connection.connect((err) => {
+            if (err) {
+                console.error(messages.connectionError, err.stack);  // Using message from messages.js
+            } else {
+                console.log(messages.dbConnected);  // Using message from messages.js
             }
+        });
+    }
 
-            if (req.method === 'GET' && req.url.startsWith('/query')) {
-                // Handle GET request to execute the SQL query from the URL
-                const queryObject = url.parse(req.url, true).query;
-                const sqlQuery = queryObject.sql;
+    createTable() {
+        this.connection.query(this.tableCreationQuery, (err, results) => {
+            if (err) {
+                console.error(messages.sqlTableError, err.stack);  // Using message from messages.js
+            } else {
+                console.log(messages.successMessage);  // Using message from messages.js
+            }
+        });
+    }
+}
 
-                if (!sqlQuery) {
-                    res.writeHead(400, { 'Content-Type': 'text/plain' });
-                    res.end('SQL query missing from URL');
-                    return;
-                }
+// Controller class to handle the logic for GET and POST requests
+class QueryController {
+    constructor(connection) {
+        this.connection = connection;
+    }
 
-                console.log('Received GET query:', sqlQuery);
+    handleGet(req, res) {
+        const queryObject = url.parse(req.url, true).query;
+        const sqlQuery = queryObject.sql;
 
-                connection.query(sqlQuery, (err, results) => {
+        if (!sqlQuery) {
+            res.writeHead(400, { 'Content-Type': 'text/plain' });
+            res.end(messages.queryMissing);  // Using message from messages.js
+            return;
+        }
+
+        console.log(`${messages.queryReceived} ${sqlQuery}`);  // Using message from messages.js
+
+        this.connection.query(sqlQuery, (err, results) => {
+            if (err) {
+                console.error(`${messages.sqlExecutionError}`, err.stack);  // Using message from messages.js
+                res.writeHead(500, { 'Content-Type': 'text/plain' });
+                res.end(`${messages.sqlExecutionError}: ${err.message}`);  // Using message from messages.js
+            } else {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify(results));
+            }
+        });
+    }
+
+    handlePost(req, res) {
+        let body = '';
+
+        // Collect incoming data
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+
+        req.on('end', () => {
+            try {
+                const { query } = JSON.parse(body);  // Parse the incoming SQL query
+                console.log(`${messages.postQueryReceived} ${query}`);  // Using message from messages.js
+
+                this.connection.query(query, (err, results) => {
                     if (err) {
-                        console.error('Error executing query:', err.stack);
+                        console.error(`${messages.sqlExecutionError}`, err.stack);  // Using message from messages.js
                         res.writeHead(500, { 'Content-Type': 'text/plain' });
-                        res.end(`Error executing query: ${err.message}`);
+                        res.end(`${messages.sqlExecutionError}: ${err.message}`);  // Using message from messages.js
                     } else {
-                        // Send the results back as a JSON response
                         res.writeHead(200, { 'Content-Type': 'application/json' });
                         res.end(JSON.stringify(results));
                     }
                 });
 
-            } else if (req.method === 'POST' && req.url === '/query') {
-                let body = '';
-
-                // Collect incoming data
-                req.on('data', chunk => {
-                    body += chunk.toString();
-                });
-
-                // Process the complete request
-                req.on('end', () => {
-                    try {
-                        const { query } = JSON.parse(body);  // Parse the incoming SQL query
-                        console.log('Received POST query:', query);
-
-                        connection.query(query, (err, results) => {
-                            if (err) {
-                                console.error('Error executing query:', err.stack);
-                                res.writeHead(500, { 'Content-Type': 'text/plain' });
-                                res.end(`Error executing query: ${err.message}`);
-                            } else {
-                                // Send the results back as a JSON response
-                                res.writeHead(200, { 'Content-Type': 'application/json' });
-                                res.end(JSON.stringify(results));
-                            }
-                        });
-
-                    } catch (err) {
-                        console.error('Error processing request:', err.stack);
-                        res.writeHead(500, { 'Content-Type': 'text/plain' });
-                        res.end(`Error processing request: ${err.message}`);
-                    }
-                });
-
-            } else {
-                res.writeHead(404, { 'Content-Type': 'text/plain' });
-                res.end('Not Found');
+            } catch (err) {
+                console.error(`${messages.processingError}: ${err.stack}`);  // Using message from messages.js
+                res.writeHead(500, { 'Content-Type': 'text/plain' });
+                res.end(`${messages.processingError}: ${err.message}`);  // Using message from messages.js
             }
-        }).listen(this.port, () => {
+        });
+    }
+}
+
+// Router class to manage the routes
+class Router {
+    constructor(queryController, queryRoute) {
+        this.queryController = queryController;
+        this.queryRoute = queryRoute;
+    }
+
+    route(req, res) {
+        // Handle CORS
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+        if (req.method === 'OPTIONS') {
+            res.writeHead(204); // No Content
+            res.end();
+            return;
+        }
+
+        if (req.method === 'GET' && req.url.startsWith(this.queryRoute)) {
+            this.queryController.handleGet(req, res);
+        } else if (req.method === 'POST' && req.url === this.queryRoute) {
+            this.queryController.handlePost(req, res);
+        } else {
+            res.writeHead(404, { 'Content-Type': 'text/plain' });
+            res.end(messages.notFound);  // Using message from messages.js
+        }
+    }
+}
+
+// Server class to start the HTTP server
+class Server {
+    constructor(port, router) {
+        this.port = port;
+        this.router = router;
+    }
+
+    start() {
+        const server = http.createServer((req, res) => {
+            this.router.route(req, res);  // Delegate the request to the Router
+        });
+
+        server.listen(this.port, () => {
             console.log(`Server running at http://localhost:${this.port}/`);
         });
     }
 }
 
-const server = new Server(3000);
+// Initialize and start the application
+const dbManager = new DatabaseManager(connection, createTableQuery);
+dbManager.connect();
+dbManager.createTable();
+
+// Initialize the QueryController and Router
+const queryController = new QueryController(connection);
+const router = new Router(queryController, QUERY_ROUTE);
+
+// Start the server using the constant PORT
+const server = new Server(PORT, router);
 server.start();
